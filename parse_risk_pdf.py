@@ -2,134 +2,122 @@
 import pdfplumber
 import re
 import json
-import unicodedata
 
-# 유니코드 대시(하이픈) 문자 클래스: ASCII - 및 Pd 주요 문자
-DASH_CHARS = r"[\u002D\u2010-\u2015\u2212\uFE63\uFF0D]"
-SEP = rf"(?:\s*{DASH_CHARS}\s*|\s+)"  # 하이픈 또는 공백을 구분자로 모두 허용
+# ---- 시작 앵커(맨 앞) 패턴들 ----
+CHAP_RE = re.compile(r'^(\d+)\s+(.+)$')                 # "7 기타 투자위험요소 예시"
+SEC_RE  = re.compile(r'^(\d+)-(\d+)\s*\(([^)]*)\)\s*(.*)$')   # "7-1 (주가 희석화) 나머지"
+ART_RE  = re.compile(r'^(\d+)-(\d+)-(\d+)\.\s*(.*)$')         # "7-1-1. 본문..."
 
-# ❶ 시작 고정(match) 대신 search 사용 + 분리자 관대화
-chap_pattern = re.compile(rf"\b(\d+)\s+(.+)")
-sec_pattern  = re.compile(rf"\b(\d+){SEP}(\d+)\s*\((.*?)\)\s*(.*)")
-art_pattern  = re.compile(rf"\b(\d+){SEP}(\d+){SEP}(\d+)\.\s*(.*)")
+HEADER_RE     = re.compile(r'^\s*투자위험요소\s*기재요령\s*안내서')  # 반복 헤더
+PAGE_LINE_RE  = re.compile(r'^\s*-\s*\d+\s*-\s*$')              # "- 5 -" 같은 줄만 제거(라인 전체 앵커)
 
-def normalize_text(s: str) -> str:
-    # ❷ 유니코드 정규화(NFKC): 숫자/기호 통일 (전각, 합성문자 등)
-    #    + 비표준 대시들을 ASCII '-'로 통일
-    s = unicodedata.normalize("NFKC", s)  # NFC도 가능하나 기호 통합엔 NFKC가 유리
-    s = re.sub(DASH_CHARS, "-", s)
-    # 흔한 제어 문자 정리
-    s = s.replace("\u00A0", " ")  # NBSP
-    return s
-
-def parse_risk_guide_pdf(pdf_path: str, y_tol: float = 2.0, x_tol: float = 1.0):
-    """
-    '투자위험요소 기재요령 안내서' PDF를 파싱하여 구조화된 JSON 리스트로 반환
-    """
+def parse_risk_pdf(pdf_path: str):
     docs = []
-    cur = None
-    chap_id = chap_name = None
-    sec_id = sec_name = None
 
-    # ❸ 줄 병합 완화: y_tolerance를 낮춰 줄 경계 보존 유도
+    # 현재 컨텍스트(상태)
+    current_chap_id   = None
+    current_chap_name = None
+    current_sec_id    = None
+    current_sec_name  = None
+
+    # 진행 중 문서(절/조)
+    cur = None  # dict: chap_id/chap_name/sec_id/sec_name/art_id/content
+
+    def flush():
+        nonlocal cur, docs
+        if cur and cur.get("chap_id") and cur.get("sec_id") and cur.get("art_id") is not None:
+            # content가 비어도 구조는 유지
+            cur["content"] = (cur.get("content") or "").strip()
+            docs.append(cur)
+        cur = None
+
+    # 1) PDF → 텍스트
     with pdfplumber.open(pdf_path) as pdf:
-        full_text = []
-        for page in pdf.pages:
-            txt = page.extract_text(y_tolerance=y_tol, x_tolerance=x_tol) or ""
-            # 푸터의 "- 숫자 -" 패턴 제거
-            txt = re.sub(r"-\s*\d+\s*-", "", txt)
-            full_text.append(txt)
-        full_text = "\n".join(full_text)
+        full_text = "\n".join((page.extract_text() or "") for page in pdf.pages)
 
-    # ❹ 유니코드/대시 정규화
-    full_text = normalize_text(full_text)
-
-    # 줄 단위 스캔하면서, 한 줄에 "섹션/조"가 여러 번 나타나도 모두 쪼갬
-    for raw_line in full_text.splitlines():
-        line = raw_line.strip()
+    # 2) 라인 단위 파싱 (맨 앞에서만 매칭)
+    for raw in full_text.split('\n'):
+        line = (raw or '').strip()
         if not line:
             continue
-
-        # PDF 헤더/잡음 건너뛰기
-        if line.isdigit() or line.startswith("■투자위험요소 기재요령 안내서"):
+        if PAGE_LINE_RE.fullmatch(line):  # 페이지번호 줄만 제거 (내부 "7-1-1." 훼손 방지)
+            continue
+        if HEADER_RE.match(line):
             continue
 
-        pos = 0
-        while pos < len(line):
-            # 현재 위치부터 가장 먼저 나오는 번호 패턴(조 > 섹션 > 챕터) 탐색
-            m_art = art_pattern.search(line, pos)
-            m_sec = sec_pattern.search(line, pos)
-            m_ch  = chap_pattern.search(line, pos)
+        # 우선순위: ART > SEC > CHAP (모두 "맨 앞" 매칭)
+        m_art = ART_RE.match(line)
+        if m_art:
+            flush()  # 이전 문서 종료
+            chap_id, sec_id, art_id, content = m_art.groups()
 
-            # 후보 중 가장 앞에 나타난 매치 선택 (동일 시작이면 우선순위: 조 > 섹션 > 챕터)
-            candidates = [(m_art, "art"), (m_sec, "sec"), (m_ch, "chap")]
-            candidates = [(m, kind) for (m, kind) in candidates if m]
-            if not candidates:
-                # 남은 꼬리 텍스트는 현재 문서에 이어 붙임
-                if cur:
-                    tail = line[pos:].strip()
-                    if tail:
-                        cur["content"] += (" " if cur["content"] else "") + tail
-                break
+            # 컨텍스트 갱신
+            current_chap_id = chap_id
+            # current_chap_name은 직전 장 라인에서 이미 세팅되어 있을 수 있음
+            current_sec_id = sec_id
+            # current_sec_name은 직전 절 라인에서 이미 세팅되어 있을 수 있음
 
-            m, kind = min(candidates, key=lambda t: (t[0].start(), {"art":0,"sec":1,"chap":2}[t[1]]))
+            # 새 문서 시작
+            cur = {
+                "chap_id":   current_chap_id,
+                "chap_name": current_chap_name,
+                "sec_id":    current_sec_id,
+                "sec_name":  current_sec_name,
+                "art_id":    art_id,
+                "content":   (content or "").strip(),
+            }
+            continue
 
-            # 매치 이전의 프리픽스 텍스트는 현재 문서에 이어 붙임
-            prefix = line[pos:m.start()].strip()
-            if prefix and cur:
-                cur["content"] += (" " if cur["content"] else "") + prefix
+        m_sec = SEC_RE.match(line)
+        if m_sec:
+            flush()
+            chap_id, sec_id, sec_name, rest = m_sec.groups()
 
-            if kind == "art":
-                # 이전 문서 flush
-                if cur: docs.append(cur)
-                g1, g2, g3, content = m.groups()
-                cur = {
-                    "chap_id": chap_id,
-                    "chap_name": chap_name,
-                    "sec_id": g2,
-                    "sec_name": sec_name,
-                    "art_id": g3,
-                    "content": content.strip()
-                }
+            # 컨텍스트 갱신
+            current_chap_id   = chap_id
+            current_sec_id    = sec_id
+            current_sec_name  = (sec_name or "").strip()
 
-            elif kind == "sec":
-                if cur: docs.append(cur)
-                g1, g2, sec_nm, content = m.groups()
-                chap_id = g1  # 섹션 라인에도 챕터 번호가 앞에 나타남
-                sec_id = g2
-                sec_name = sec_nm.strip()
-                cur = {
-                    "chap_id": chap_id,
-                    "chap_name": chap_name,
-                    "sec_id": sec_id,
-                    "sec_name": sec_name,
-                    "art_id": "0",
-                    "content": (content or "").strip()
-                }
+            cur = {
+                "chap_id":   current_chap_id,
+                "chap_name": current_chap_name,  # 마지막으로 본 장 제목 자동 전파
+                "sec_id":    current_sec_id,
+                "sec_name":  current_sec_name,
+                "art_id":    "0",                # 절 본문은 art_id=0
+                "content":   (rest or "").strip(),
+            }
+            continue
 
-            else:  # "chap"
-                # 챕터는 상태만 갱신
-                if cur: docs.append(cur)
-                chap_id, chap_name = m.groups()
-                chap_name = chap_name.strip()
-                cur = None
+        m_ch = CHAP_RE.match(line)
+        if m_ch:
+            # 장은 문서가 아니므로, 진행 중 문서가 있으면 종료 후 장 컨텍스트만 갱신
+            flush()
+            chap_id, chap_name = m_ch.groups()
+            current_chap_id   = chap_id
+            current_chap_name = (chap_name or "").strip()
+            # 장이 바뀌면 절 컨텍스트는 초기화
+            current_sec_id    = None
+            current_sec_name  = None
+            continue
 
-            pos = m.end()
+        # 일반 라인: 현재 문서 본문에 이어붙임
+        if cur:
+            cur["content"] += (" " if cur["content"] else "") + line
 
-    if cur:
-        docs.append(cur)
-
+    # 끝나면 마지막 문서 flush
+    flush()
     return docs
+
 
 if __name__ == "__main__":
     pdf_file_path = "./standard/투자위험요소 기재요령 안내서(202401).pdf"
-    parsed = parse_risk_guide_pdf(pdf_file_path)
+    out_path = "risk_standard_bulk.json"
 
-    print(f"총 {len(parsed)}개의 문서가 성공적으로 파싱되었습니다.")
+    parsed = parse_risk_pdf(pdf_file_path)
+    print(f"총 {len(parsed)}개 항목")
     print(json.dumps(parsed[:5], ensure_ascii=False, indent=2))
 
-    with open("risk_standard_bulk.json", "w", encoding="utf-8") as f:
-        for doc in parsed:
-            f.write(json.dumps(doc, ensure_ascii=False) + "\n")
-
-    print("\n'risk_standard_bulk.json' 파일이 생성되었습니다.")
+    with open(out_path, "w", encoding="utf-8") as f:
+        for d in parsed:
+            f.write(json.dumps(d, ensure_ascii=False) + "\n")
+    print(f"saved -> {out_path}")
