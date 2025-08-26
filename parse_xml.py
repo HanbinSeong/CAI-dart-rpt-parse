@@ -5,6 +5,7 @@ import os
 import json
 import codecs
 from bs4 import BeautifulSoup
+from bs4.element import Tag
 import pandas as pd
 
 df_codes = pd.read_csv(
@@ -130,14 +131,16 @@ def clean_table_html_for_llm(html_string):
     ]
 
     for tag in soup.find_all(True):  # 모든 태그 순회 (자신 포함)
-        # 비표준 태그 (TE, TU)를 표준 TD로 변환
-        if tag.name == "te" or tag.name == "tu":
-            tag.name = "td"
+        # Tag 객체인 경우에만 name 속성 접근
+        if isinstance(tag, Tag):
+            # 비표준 태그 (TE, TU)를 표준 TD로 변환
+            if tag.name == "te" or tag.name == "tu":
+                tag.name = "td"
 
-        # 불필요한 속성 제거
-        for attr_name in list(tag.attrs.keys()):
-            if attr_name.lower() in attrs_to_remove:
-                del tag.attrs[attr_name]
+            # 불필요한 속성 제거
+            for attr_name in list(tag.attrs.keys()):
+                if attr_name.lower() in attrs_to_remove:
+                    del tag.attrs[attr_name]
 
     cleaned_html = str(soup)
     # 고객님의 제안대로 순서대로 처리: 줄바꿈 제거 -> 역슬래시 제거 -> 연속 공백 압축
@@ -210,16 +213,16 @@ def parse_darter_xml(xml_content, file_name):
 
     # ... (doc_name, doc_code, corp_code, corp_name 추출 로직) ...
     doc_name_element = root.find("DOCUMENT-NAME")
-    doc_name = doc_name_element.text.strip() if doc_name_element is not None else ""
+    doc_name = doc_name_element.text.strip() if doc_name_element is not None and doc_name_element.text is not None else ""
     doc_code = doc_name_element.get("ACODE") if doc_name_element is not None else ""
     company_name_element = root.find("COMPANY-NAME")
     corp_code = (
         company_name_element.get("AREGCIK") if company_name_element is not None else ""
     )
     corp_name = (
-        company_name_element.text.strip() if company_name_element is not None else ""
+        company_name_element.text.strip() if company_name_element is not None and company_name_element.text is not None else ""
     )
-    induty_code = get_induty_code(corp_code)
+    induty_code = get_induty_code(corp_code if corp_code is not None else "")
     # ...
 
     report_data = {
@@ -345,4 +348,4 @@ def get_induty_code(corp_code: str) -> str:
     row = df_codes[df_codes['corp_code'] == corp_code]
     if not row.empty:
         return row.iloc[0]['induty_code']
-    return None  # 없으면 None 반환
+    return ""  # 없으면 "" 반환
