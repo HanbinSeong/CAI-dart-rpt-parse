@@ -1,4 +1,4 @@
-# ingest_to_os_from_pdf.py
+# ingest_to_os_from_pdf.py (기업공시작성기준)
 
 import os
 from opensearchpy import OpenSearch
