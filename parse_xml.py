@@ -1,10 +1,16 @@
-# parse_1q.py
+# parse_xml.py
 import xml.etree.ElementTree as ET
 import re
 import os
 import json
 import codecs
 from bs4 import BeautifulSoup
+import pandas as pd
+
+df_codes = pd.read_csv(
+    "./company_overview_codes.csv",
+    dtype={"corp_code": str, "induty_code": str}
+)
 
 
 def preprocess_xml_content(xml_string):
@@ -190,6 +196,13 @@ def parse_darter_xml(xml_content, file_name):
         # 오류 처리 로직은 기존과 동일
         print(f"XML 파싱 오류 발생: {e}")
         return None
+    
+
+    # 스킵 조건: <TITLE> 중 텍스트가 "증권발행조건확정"인 경우
+    skip_title = root.find(".//TITLE")
+    if skip_title is not None and skip_title.text and skip_title.text.strip() == "증권발행조건확정":
+        return None   # 🚨 이 문서는 처리하지 않음
+
 
     # 최상위 레벨 데이터 추출 (기존 코드와 동일)
     doc_id = file_name.split(".")[0]
@@ -206,6 +219,7 @@ def parse_darter_xml(xml_content, file_name):
     corp_name = (
         company_name_element.text.strip() if company_name_element is not None else ""
     )
+    induty_code = get_induty_code(corp_code)
     # ...
 
     report_data = {
@@ -215,6 +229,7 @@ def parse_darter_xml(xml_content, file_name):
         "pub_date": pub_date,
         "corp_code": corp_code,
         "corp_name": corp_name,
+        "induty_code": induty_code,
         "sections": [],
     }
 
@@ -321,3 +336,13 @@ def _combine_contents(items):
 #         print(json.dumps(parsed_data, ensure_ascii=False, indent=2))
 #     else:
 #         print("Parsing failed.")
+
+
+
+
+def get_induty_code(corp_code: str) -> str:
+    """corp_code를 입력받아 induty_code 반환"""
+    row = df_codes[df_codes['corp_code'] == corp_code]
+    if not row.empty:
+        return row.iloc[0]['induty_code']
+    return None  # 없으면 None 반환

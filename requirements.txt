@@ -3,3 +3,5 @@ beautifulsoup4
 xmlschema
 opensearch-py==3.0.0
 pdfplumber
+pandas
+dotenv

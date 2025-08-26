@@ -45,6 +45,7 @@ INDEX_MAPPINGS = {
                 "pub_date": {"type": "date", "format": "yyyyMMdd"},
                 "corp_code": {"type": "keyword"},
                 "corp_name": {"type": "keyword"},
+                "induty_code": {"type": "keyword"},
                 "sections": {
                     "type": "nested",
                     "properties": {
@@ -79,6 +80,7 @@ INDEX_MAPPINGS = {
                 "pub_date": {"type": "date", "format": "yyyyMMdd"},
                 "corp_code": {"type": "keyword"},
                 "corp_name": {"type": "keyword"},
+                "induty_code": {"type": "keyword"},
                 "sections": {
                     "type": "nested",
                     "properties": {
@@ -113,6 +115,7 @@ INDEX_MAPPINGS = {
                 "pub_date": {"type": "date", "format": "yyyyMMdd"},
                 "corp_code": {"type": "keyword"},
                 "corp_name": {"type": "keyword"},
+                "induty_code": {"type": "keyword"},
                 "sections": {
                     "type": "nested",
                     "properties": {
@@ -147,6 +150,7 @@ INDEX_MAPPINGS = {
                 "pub_date": {"type": "date", "format": "yyyyMMdd"},
                 "corp_code": {"type": "keyword"},
                 "corp_name": {"type": "keyword"},
+                "induty_code": {"type": "keyword"},
                 "sections": {
                     "type": "nested",
                     "properties": {
@@ -181,6 +185,7 @@ INDEX_MAPPINGS = {
                 "pub_date": {"type": "date", "format": "yyyyMMdd"},
                 "corp_code": {"type": "keyword"},
                 "corp_name": {"type": "keyword"},
+                "induty_code": {"type": "keyword"},
                 "sections": {
                     "type": "nested",
                     "properties": {
@@ -204,7 +209,7 @@ def create_indices():
             print(f"Creating index '{index_name}' with mapping...")
             body = {
                 "settings": {
-                    "number_of_shards": 1,
+                    "number_of_shards": 5,
                     "number_of_replicas": 0,
                     **mapping.get("settings", {}),
                 },
@@ -225,17 +230,9 @@ def generate_actions(data_dir):
             continue
 
         print(f"Processing directory: {full_dir_path}")
-        file_count = 0
 
         for root, dirs, files in os.walk(full_dir_path):
-            if file_count >= 10:
-                print(f"Reached file limit (10) for folder: {folder_name}. Skipping remaining files.")
-                break
-
             for file_name in files:
-                if file_count >= 10:
-                    break
-
                 if file_name.endswith(".xml"):
                     file_path = os.path.join(root, file_name)
 
@@ -253,12 +250,12 @@ def generate_actions(data_dir):
                                 "_id": parsed_data["doc_id"],
                                 "_source": parsed_data,
                             }
-                            file_count += 1
 
                     except Exception as e:
                         print(f"Error processing file {file_path}: {e}")
                         continue
-    print("All folders have been processed up to the file limit.")
+                        
+    print("All folders have been processed.")
 
 def main():
     create_indices()
