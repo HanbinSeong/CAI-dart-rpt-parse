@@ -5,6 +5,9 @@ from opensearchpy import OpenSearch
 from opensearchpy.helpers import bulk
 from parse_risk_pdf import parse_risk_pdf  # ← 파서 연동
 
+# from dotenv import load_dotenv
+# load_dotenv()
+
 # ─────────────────────────────────────────────
 # OpenSearch 접속 정보
 # ─────────────────────────────────────────────
@@ -32,15 +35,46 @@ INDEX_BODY = {
     "settings": {
         "number_of_shards": 5,
         "number_of_replicas": 0,
+        "analysis": {
+            "analyzer": {
+                "ko_nori": {
+                    "type": "custom",
+                    "tokenizer": "nori_tokenizer",
+                    "filter": ["lowercase", "nori_part_of_speech"],
+                },
+                "default": {
+                    "type": "custom",
+                    "tokenizer": "nori_tokenizer",
+                    "filter": ["lowercase", "nori_part_of_speech"],
+                },
+                "default_search": {
+                    "type": "custom",
+                    "tokenizer": "nori_tokenizer",
+                    "filter": ["lowercase", "nori_part_of_speech"],
+                },
+            }
+        },
     },
     "mappings": {
         "properties": {
             "chap_id": {"type": "keyword"},
-            "chap_name": {"type": "keyword"},
+            "chap_name": {
+                "type": "text",
+                "analyzer": "ko_nori",
+                "search_analyzer": "ko_nori",
+            },
             "sec_id": {"type": "keyword"},
-            "sec_name": {"type": "keyword"},
+            "sec_name": {
+                "type": "text",
+                "analyzer": "ko_nori",
+                "search_analyzer": "ko_nori",
+            },
             "art_id": {"type": "keyword"},
-            "content": {"type": "text"},
+            "content": {
+                "type": "text",
+                "analyzer": "ko_nori",
+                "search_analyzer": "ko_nori",
+            },
         }
     },
 }

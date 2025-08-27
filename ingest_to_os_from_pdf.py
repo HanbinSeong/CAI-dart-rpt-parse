@@ -5,32 +5,87 @@ from opensearchpy import OpenSearch
 from opensearchpy.helpers import bulk
 from parse_pdf import parse_pdf
 
-# OpenSearch 접속 정보
-OS_HOSTS = ["http://localhost:9200"]
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# ─────────────────────────────────────────────
+# AWS OpenSearch 접속 정보
+# ─────────────────────────────────────────────
+# OS_HOSTS = os.getenv("OS_HOSTS", "http://localhost:9200").split(",")
+# OS_USER = os.getenv("OS_USER") or None
+# OS_PASS = os.getenv("OS_PASS") or None
+
+# ─────────────────────────────────────────────
+# 로컬 OpenSearch 접속 정보
+# ─────────────────────────────────────────────
+OS_HOSTS = "http://localhost:9200".split(",")
+OS_USER = None
+OS_PASS = None
+
 os_client = OpenSearch(
     hosts=OS_HOSTS,
     http_compress=True,
     retry_on_timeout=True,
     max_retries=3,
     request_timeout=60,
+    http_auth=(OS_USER, OS_PASS) if OS_USER and OS_PASS else None,
 )
 
 # 인덱스 매핑 정의
 INDEX_MAPPINGS = {
     "standard": {
+        "settings": {
+            "analysis": {
+                "analyzer": {
+                    "ko_nori": {
+                        "type": "custom",
+                        "tokenizer": "nori_tokenizer",
+                        "filter": ["lowercase", "nori_part_of_speech"],
+                    },
+                    "default": {
+                        "type": "custom",
+                        "tokenizer": "nori_tokenizer",
+                        "filter": ["lowercase", "nori_part_of_speech"],
+                    },
+                    "default_search": {
+                        "type": "custom",
+                        "tokenizer": "nori_tokenizer",
+                        "filter": ["lowercase", "nori_part_of_speech"],
+                    },
+                }
+            },
+        },
         "mappings": {
             "properties": {
-                "chap_id":   {"type": "keyword"},
-                "chap_name": {"type": "keyword"},
-                "sec_id":    {"type": "keyword"},
-                "sec_name":  {"type": "keyword"},
-                "art_id":    {"type": "keyword"},
-                "art_name":  {"type": "keyword"},
-                "content":   {"type": "text"},
+                "chap_id": {"type": "keyword"},
+                "chap_name": {
+                    "type": "text",
+                    "analyzer": "ko_nori",
+                    "search_analyzer": "ko_nori",
+                },
+                "sec_id": {"type": "keyword"},
+                "sec_name": {
+                    "type": "text",
+                    "analyzer": "ko_nori",
+                    "search_analyzer": "ko_nori",
+                },
+                "art_id": {"type": "keyword"},
+                "art_name": {
+                    "type": "text",
+                    "analyzer": "ko_nori",
+                    "search_analyzer": "ko_nori",
+                },
+                "content": {
+                    "type": "text",
+                    "analyzer": "ko_nori",
+                    "search_analyzer": "ko_nori",
+                },
             },
         },
     },
 }
+
 
 def create_indices():
     """
@@ -42,7 +97,7 @@ def create_indices():
             print(f"Creating index '{index_name}' with mapping...")
             body = {
                 "settings": {
-                    "number_of_shards": 1,
+                    "number_of_shards": 5,
                     "number_of_replicas": 0,
                     **mapping.get("settings", {}),
                 },
@@ -51,6 +106,7 @@ def create_indices():
             os_client.indices.create(index=index_name, body=body)
         else:
             print(f"Index '{index_name}' already exists.")
+
 
 def generate_actions(index_name, parsed_data):
     """
@@ -61,6 +117,7 @@ def generate_actions(index_name, parsed_data):
             "_index": index_name,
             "_source": doc,
         }
+
 
 def ingest_documents(index_name, documents):
     """
@@ -75,13 +132,14 @@ def ingest_documents(index_name, documents):
     success, errors = bulk(
         os_client,
         generate_actions(index_name, documents),
-        refresh=False,            # 필요 시 True
+        refresh=False,  # 필요 시 True
         request_timeout=60,
     )
     print(f"Successfully ingested {success} documents.")
     if errors:
         # errors는 per-item 에러 목록
         print(f"Failed to ingest {len(errors)} documents. First error: {errors[0]}")
+
 
 if __name__ == "__main__":
     create_indices()

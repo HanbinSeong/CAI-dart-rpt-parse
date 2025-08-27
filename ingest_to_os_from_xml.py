@@ -5,15 +5,23 @@ from opensearchpy import OpenSearch
 from opensearchpy.helpers import bulk
 from parse_xml import parse_darter_xml
 import codecs
+from dotenv import load_dotenv
+load_dotenv()
 
+# ─────────────────────────────────────────────
 # OpenSearch 접속 정보
-OS_HOSTS = ["http://localhost:9200"]  # OpenSearch 노드 URL
+# ─────────────────────────────────────────────
+OS_HOSTS = os.getenv("OS_HOSTS", "http://localhost:9200").split(",")
+OS_USER = os.getenv("OS_USER") or None
+OS_PASS = os.getenv("OS_PASS") or None
+
 os_client = OpenSearch(
     hosts=OS_HOSTS,
     http_compress=True,
     retry_on_timeout=True,
     max_retries=3,
     request_timeout=60,
+    http_auth=(OS_USER, OS_PASS) if OS_USER and OS_PASS else None,
 )
 
 DOC_CODE_INDEX_MAP = {
@@ -270,7 +278,7 @@ def main():
         success, failed = bulk(
             os_client,
             generate_actions(data_raw_path),
-            chunk_size=500,
+            chunk_size=10,
             stats_only=True
         )
         print(f"Bulk ingestion completed. Succeeded: {success}, Failed: {failed}")
