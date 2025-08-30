@@ -41,17 +41,17 @@ INDEX_MAPPINGS = {
                     "ko_nori": {
                         "type": "custom",
                         "tokenizer": "nori_tokenizer",
-                        "filter": ["lowercase", "nori_part_of_speech"],
+                        "filter": ["lowercase", "nori_part_of_speech", "nori_readingform"],
                     },
                     "default": {
                         "type": "custom",
                         "tokenizer": "nori_tokenizer",
-                        "filter": ["lowercase", "nori_part_of_speech"],
+                        "filter": ["lowercase", "nori_part_of_speech", "nori_readingform"],
                     },
                     "default_search": {
                         "type": "custom",
                         "tokenizer": "nori_tokenizer",
-                        "filter": ["lowercase", "nori_part_of_speech"],
+                        "filter": ["lowercase", "nori_part_of_speech", "nori_readingform"],
                     },
                 }
             },
@@ -115,6 +115,7 @@ def generate_actions(index_name, parsed_data):
     for doc in parsed_data:
         yield {
             "_index": index_name,
+            "_id": f"{doc['chap_id']}-{doc['sec_id']}-{doc['art_id']}",
             "_source": doc,
         }
 

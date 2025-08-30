@@ -40,17 +40,17 @@ INDEX_BODY = {
                 "ko_nori": {
                     "type": "custom",
                     "tokenizer": "nori_tokenizer",
-                    "filter": ["lowercase", "nori_part_of_speech"],
+                    "filter": ["lowercase", "nori_part_of_speech", "nori_readingform"],
                 },
                 "default": {
                     "type": "custom",
                     "tokenizer": "nori_tokenizer",
-                    "filter": ["lowercase", "nori_part_of_speech"],
+                    "filter": ["lowercase", "nori_part_of_speech", "nori_readingform"],
                 },
                 "default_search": {
                     "type": "custom",
                     "tokenizer": "nori_tokenizer",
-                    "filter": ["lowercase", "nori_part_of_speech"],
+                    "filter": ["lowercase", "nori_part_of_speech", "nori_readingform"],
                 },
             }
         },
