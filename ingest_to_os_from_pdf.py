@@ -114,6 +114,7 @@ def generate_actions(index_name, parsed_data):
     for doc in parsed_data:
         yield {
             "_index": index_name,
+            "_id": f"{doc['chap_id']}-{doc['sec_id']}-{doc['art_id']}",
             "_source": doc,
         }
 
