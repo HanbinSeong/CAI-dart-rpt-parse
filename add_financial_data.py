@@ -7,8 +7,8 @@ load_dotenv()
 
 
 DART_API_KEY = os.getenv('DART_API_KEY')
-url = f"https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json"
-print(f"DART API Key: {DART_API_KEY}")
+url = "https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json"
+
 
 # OpenSearch 연결 설정
 client = OpenSearch(
@@ -74,8 +74,8 @@ def get_all_corp_codes(index="rpt_sec_eq"):
     """인덱스에서 고유한 corp_code 목록 가져오기"""
     result = client.search(
         index=index,
-        size=0,
         body={
+            "size": 0,
             "aggs": {
                 "unique_corp_codes": {
                     "terms": {"field": "corp_code", "size": 10000}
@@ -145,12 +145,12 @@ def fetch_financial_data(corp_code, year="2024", reprt_code="11011"):
                         prev_values[field] = frmtrm
 
         # 파생 지표
-        fin["operating_margin"] = fin["operating_income"] / fin["revenue"] if fin["revenue"] else None
-        fin["net_margin"] = fin["net_income"] / fin["revenue"] if fin["revenue"] else None
-        fin["debt_to_equity"] = ((fin["total_assets"] - fin["equity"]) / fin["equity"]) if fin["equity"] else None
-        fin["equity_ratio"] = fin["equity"] / fin["total_assets"] if fin["total_assets"] else None
-        fin["operating_cf_to_investing_cf"] = (fin["cash_flow_operating"] / fin["cash_flow_investing"]) if fin["cash_flow_investing"] else None
-        fin["operating_cf_to_revenue"] = (fin["cash_flow_operating"] / fin["revenue"]) if fin["revenue"] else None
+        fin["operating_margin"] = fin["operating_income"] / fin["revenue"] if fin["revenue"] else 0.0
+        fin["net_margin"] = fin["net_income"] / fin["revenue"] if fin["revenue"] else 0.0
+        fin["debt_to_equity"] = ((fin["total_assets"] - fin["equity"]) / fin["equity"]) if fin["equity"] else 0.0
+        fin["equity_ratio"] = fin["equity"] / fin["total_assets"] if fin["total_assets"] else 0.0
+        fin["operating_cf_to_investing_cf"] = (fin["cash_flow_operating"] / fin["cash_flow_investing"]) if fin["cash_flow_investing"] else 0.0
+        fin["operating_cf_to_revenue"] = (fin["cash_flow_operating"] / fin["revenue"]) if fin["revenue"] else 0.0
 
         # 증가율
         fin["revenue_growth"] = calculate_growth(fin["revenue"], prev_values.get("revenue"))

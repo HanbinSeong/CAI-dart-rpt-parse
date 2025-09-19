@@ -5,8 +5,8 @@ from opensearchpy import OpenSearch
 from opensearchpy.helpers import bulk
 from parse_risk_pdf import parse_risk_pdf  # ← 파서 연동
 
-# from dotenv import load_dotenv
-# load_dotenv()
+from dotenv import load_dotenv
+load_dotenv()
 
 # ─────────────────────────────────────────────
 # OpenSearch 접속 정보
@@ -40,17 +40,17 @@ INDEX_BODY = {
                 "ko_nori": {
                     "type": "custom",
                     "tokenizer": "nori_tokenizer",
-                    "filter": ["lowercase", "nori_part_of_speech"],
+                    "filter": ["lowercase", "nori_part_of_speech", "nori_readingform"],
                 },
                 "default": {
                     "type": "custom",
                     "tokenizer": "nori_tokenizer",
-                    "filter": ["lowercase", "nori_part_of_speech"],
+                    "filter": ["lowercase", "nori_part_of_speech", "nori_readingform"],
                 },
                 "default_search": {
                     "type": "custom",
                     "tokenizer": "nori_tokenizer",
-                    "filter": ["lowercase", "nori_part_of_speech"],
+                    "filter": ["lowercase", "nori_part_of_speech", "nori_readingform"],
                 },
             }
         },

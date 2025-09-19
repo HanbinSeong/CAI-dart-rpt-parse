@@ -12,17 +12,16 @@ load_dotenv()
 # ─────────────────────────────────────────────
 # AWS OpenSearch 접속 정보
 # ─────────────────────────────────────────────
-# OS_HOSTS = os.getenv("OS_HOSTS", "http://localhost:9200").split(",")
-# OS_USER = os.getenv("OS_USER") or None
-# OS_PASS = os.getenv("OS_PASS") or None
+OS_HOSTS = os.getenv("OS_HOSTS", "http://localhost:9200").split(",")
+OS_USER = os.getenv("OS_USER") or None
+OS_PASS = os.getenv("OS_PASS") or None
 
 # ─────────────────────────────────────────────
 # 로컬 OpenSearch 접속 정보
 # ─────────────────────────────────────────────
-OS_HOSTS = "http://localhost:9200".split(",")
-OS_USER = None
-OS_PASS = None
-
+# OS_HOSTS = "http://localhost:9200".split(",")
+# OS_USER = None
+# OS_PASS = None
 os_client = OpenSearch(
     hosts=OS_HOSTS,
     http_compress=True,
@@ -41,17 +40,17 @@ INDEX_MAPPINGS = {
                     "ko_nori": {
                         "type": "custom",
                         "tokenizer": "nori_tokenizer",
-                        "filter": ["lowercase", "nori_part_of_speech"],
+                        "filter": ["lowercase", "nori_part_of_speech", "nori_readingform"],
                     },
                     "default": {
                         "type": "custom",
                         "tokenizer": "nori_tokenizer",
-                        "filter": ["lowercase", "nori_part_of_speech"],
+                        "filter": ["lowercase", "nori_part_of_speech", "nori_readingform"],
                     },
                     "default_search": {
                         "type": "custom",
                         "tokenizer": "nori_tokenizer",
-                        "filter": ["lowercase", "nori_part_of_speech"],
+                        "filter": ["lowercase", "nori_part_of_speech", "nori_readingform"],
                     },
                 }
             },
